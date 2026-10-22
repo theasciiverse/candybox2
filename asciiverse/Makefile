@@ -6,20 +6,22 @@
 #   make -f asciiverse/Makefile          # out/candybox2
 #
 # Needs python3 and node (npx fetches TypeScript 1.7.5) to build, nothing
-# to run. CC, CFLAGS, LDFLAGS, HOSTCC and VERSION can be set from outside.
+# to run. CC, CFLAGS, LDFLAGS, HOSTCC, EXE (.exe for Windows) and VERSION
+# can be set from outside.
 
 CC ?= cc
 HOSTCC ?= cc
 CFLAGS ?= -O2
 LDFLAGS ?=
 VERSION ?= dev
+EXE ?=
 
 Q := asciiverse/quickjs
 QSRC := $(Q)/quickjs.c $(Q)/libregexp.c $(Q)/libunicode.c $(Q)/dtoa.c $(Q)/quickjs-libc.c
 QDEFS := -D_GNU_SOURCE -DCONFIG_VERSION=\"0.17.0\"
 B := build
 
-all: out/candybox2
+all: out/candybox2$(EXE)
 
 $(B)/code/gen/genAscii.ts $(B)/code/gen/genText.ts: $(wildcard ascii/*/* ascii/*/*/* text/*.txt)
 	mkdir -p code/gen $(B)/code/gen
@@ -42,7 +44,7 @@ $(B)/qjsc: $(Q)/qjsc.c $(QSRC)
 $(B)/candybox2.c: $(B)/candybox2.mjs $(B)/qjsc
 	$(B)/qjsc -e -m -N candybox2 -o $@ $(B)/candybox2.mjs
 
-out/candybox2: $(B)/candybox2.c $(QSRC)
+out/candybox2$(EXE): $(B)/candybox2.c $(QSRC)
 	mkdir -p out
 	$(CC) $(CFLAGS) $(QDEFS) -I$(Q) $(LDFLAGS) -o $@ $(B)/candybox2.c $(QSRC) -lm -lpthread
 

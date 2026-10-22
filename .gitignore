@@ -10,3 +10,5 @@
 /build/
 /out/
 /candybox2_compiled.js
+/stage/
+/dist/

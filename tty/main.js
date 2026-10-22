@@ -35,7 +35,11 @@ MAIN.writeStorage = function () {
     if (!f) return;
     f.puts(JSON.stringify(localStorage.data));
     f.close();
-    os.rename(tmp, MAIN.storagePath);
+    // Windows' rename() does not replace an existing file
+    if (os.rename(tmp, MAIN.storagePath) < 0) {
+        os.remove(MAIN.storagePath);
+        os.rename(tmp, MAIN.storagePath);
+    }
 };
 
 AV.storageChanged = function () {
