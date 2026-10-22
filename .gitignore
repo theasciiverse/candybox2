@@ -5,3 +5,8 @@
 /candybox2.js
 /candybox2_uncompressed.js
 /code/gen/
+
+# Asciiverse terminal build
+/build/
+/out/
+/candybox2_compiled.js
