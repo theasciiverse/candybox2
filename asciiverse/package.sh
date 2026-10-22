@@ -23,12 +23,12 @@ cp asciiverse/quickjs/LICENSE "$stage/QUICKJS-LICENSE"
   echo "aniwey's words, not original enough to be copyrighted."
   echo
   echo "By author:"
-  grep -rh "^@author" ascii | sed 's/^@author //; s/ *$//' | sort | uniq -c | sort -rn | sed 's/^ *[0-9]* /  /'
+  grep -rh "^@author" ascii | tr -d '\r' | sed 's/^@author //; s/ *$//' | sort | uniq -c | sort -rn | sed 's/^ *[0-9]* /  /'
   echo
   echo "Each file:"
   find ascii -type f | sort | while read -r f; do
-    a=$(head -1 "$f" | sed -n 's/^@author //p' | sed 's/ *$//')
-    [ -n "$a" ] && echo "  ${f#ascii/}: $a"
+    a=$(head -1 "$f" | tr -d '\r' | sed -n 's/^@author //p' | sed 's/ *$//')
+    if [ -n "$a" ]; then echo "  ${f#ascii/}: $a"; fi
   done
 } > "$stage/ART-LICENSE.txt"
 if [ -n "$exe" ]; then
