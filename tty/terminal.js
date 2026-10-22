@@ -67,6 +67,7 @@ TERM.newGrid = function (w, h, th) {
 };
 
 TERM.put = function (g, x, y, ch, style) {
+    x = Math.floor(x); y = Math.floor(y);
     if (x < 0 || y < 0 || x >= TERM.w || y >= TERM.h)
         return;
     var c = g[y * TERM.w + x];
@@ -89,6 +90,20 @@ TERM.layout = function () {
     }
     if (mc) {
         var vh = Math.max(1, TERM.h - sh);
+        // a new place starts at its top left, the world map at its right
+        // edge (where the village and the first places are) and at the
+        // scroll the game remembers for it (400 px at first: the village)
+        var place = AV.game ? AV.game.place : null;
+        if (place !== TERM.lastPlace) {
+            TERM.lastPlace = place;
+            TERM.follow = true;
+            TERM.scrollY = 0;
+            TERM.scrollX = 0;
+            if (typeof MainMap != "undefined" && place instanceof MainMap) {
+                TERM.scrollX = mc.width - TERM.w;
+                TERM.scrollY = Math.round((AV.scrollTop || 0) / AV.ROW_PX);
+            }
+        }
         TERM.followPlayer(mc, vh);
         var mx = mc.width <= TERM.w ? Math.floor((TERM.w - mc.width) / 2) : -(TERM.scrollX = TERM.clamp(TERM.scrollX, 0, mc.width - TERM.w));
         var my = mc.height <= vh ? sh : sh - (TERM.scrollY = TERM.clamp(TERM.scrollY, 0, mc.height - vh));
@@ -321,7 +336,18 @@ TERM.drawTooltips = function (g, th) {
     AV.allElements().forEach(function (e) {
         if (!e.hasClass("tooltip") || e.cssValue("display") != "block")
             return;
-        var lines = TERM.wordWrap(e.text(), 26);
+        // each line of the tooltip (split at <br>) wrapped to the box, bold kept
+        var lines = [], bold = [];
+        var parts = [[]];
+        e.content.forEach(function (c) { if (c.ch == "\n") parts.push([]); else parts[parts.length - 1].push(c); });
+        parts.forEach(function (p) {
+            var text = p.map(function (c) { return c.ch; }).join("");
+            var isBold = p.length && p.every(function (c) { return c.b || c.ch == " "; });
+            var wrapped = TERM.wordWrap(text, 26);
+            if (!wrapped.length) wrapped = [""];
+            wrapped.forEach(function (l) { lines.push(l); bold.push(isBold); });
+        });
+        if (!lines.length) return;
         var w = 28, h = lines.length + 2;
         var x = TERM.mouseX + 2, y = TERM.mouseY + 1;
         if (x + w > TERM.w) x = Math.max(0, TERM.mouseX - w - 1);
@@ -332,7 +358,7 @@ TERM.drawTooltips = function (g, th) {
                 if (r == 0 || r == h - 1) ch = c == 0 ? (r == 0 ? "┌" : "└") : c == w - 1 ? (r == 0 ? "┐" : "┘") : "─";
                 else if (c == 0 || c == w - 1) ch = "│";
                 else ch = lines[r - 1][c - 1] || " ";
-                TERM.put(g, x + c, y + r, ch, { fg: th.fg, bg: th.tip });
+                TERM.put(g, x + c, y + r, ch, { fg: th.fg, bg: th.tip, b: r > 0 && r < h - 1 && c > 0 && c < w - 1 && bold[r - 1] });
             }
     });
 };
@@ -457,7 +483,7 @@ TERM.click = function (x, y) {
         return;
     }
     if (!r) {
-        AV.focus = null;
+        AV.setFocus(null);
         return;
     }
     TERM.activate(r.el);
@@ -478,7 +504,7 @@ TERM.activate = function (e) {
         return;
     }
     if (e.tag == "input" || e.tag == "textarea") {
-        AV.focus = e;
+        AV.setFocus(e);
         return;
     }
     if (e.tag == "a" && e.attrs.href) {
@@ -486,7 +512,7 @@ TERM.activate = function (e) {
         if (m) MAIN.restartWithSlot(m[1]);
         return;
     }
-    AV.focus = null;
+    AV.setFocus(null);
     e.fire("mouseup", AV.event({ which: 1 }));
 };
 
@@ -595,11 +621,11 @@ TERM.key = function (k) {
     // typing into a text input or textarea
     var f = AV.focus;
     if (f && (f.tag == "input" && f.attrs.type != "checkbox" || f.tag == "textarea")) {
-        if (k.name == "escape" || k.name == "tab") { AV.focus = null; if (k.name == "tab") TERM.moveFocus(k.shift ? -1 : 1); return; }
+        if (k.name == "escape" || k.name == "tab") { AV.setFocus(null); if (k.name == "tab") TERM.moveFocus(k.shift ? -1 : 1); return; }
         if (k.name == "backspace") { f.value = f.value.substr(0, f.value.length - 1); return; }
         if (k.name == "enter") {
             if (f.tag == "textarea") f.value += "\n";
-            else f.fire("change");
+            else { AV.focusValue = f.value; f.fire("change"); }
             return;
         }
         if (k.text) { f.value += k.text; return; }
@@ -620,6 +646,17 @@ TERM.key = function (k) {
         TERM.statusScrollX += (k.name == "left" ? -1 : 1) * 10;
         return;
     }
+    // on the world map (a scrolling place without key controls) the arrows move the view
+    if (AV.game && AV.game.place && AV.game.place.getScrolling && AV.game.place.getScrolling() &&
+        { up: 1, down: 1, left: 1, right: 1 }[k.name]) {
+        TERM.follow = false;
+        if (k.name == "up") TERM.scrollY -= 3;
+        if (k.name == "down") TERM.scrollY += 3;
+        if (k.name == "left") TERM.scrollX -= 8;
+        if (k.name == "right") TERM.scrollX += 8;
+        AV.scrollTop = TERM.scrollY * AV.ROW_PX;
+        return;
+    }
     var which = TERM.whichOf(k);
     if (which) TERM.gameKey(which, false);
 };
@@ -637,6 +674,7 @@ TERM.wheel = function (dir, shift) {
     TERM.follow = false;
     if (shift) { TERM.scrollX += dir * 6; TERM.statusScrollX += dir * 6; }
     else TERM.scrollY += dir * 3;
+    AV.scrollTop = Math.max(0, TERM.scrollY) * AV.ROW_PX;
     AV.dirty = true;
 };
 

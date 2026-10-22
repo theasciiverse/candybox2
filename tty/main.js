@@ -115,11 +115,11 @@ MAIN.start = function () {
     TERM.write(MAIN.ON + "\x1b[?u");
     MAIN.size();
     var buf = new ArrayBuffer(4096), bytes = new Uint8Array(buf);
-    os.setReadHandler(0, function () {
+    os.setReadHandler(0, AV_guard(function () {
         var n = os.read(0, buf, 0, buf.byteLength);
         if (n <= 0) { MAIN.quit(); return; }
         TERM.feed(MAIN.utf8(bytes, n));
-    });
+    }));
     // SIGWINCH (28 on Linux and macOS); the size is also checked every half second
     try { os.signal(28, function () { MAIN.size(); }); } catch (e) {}
     // QuickJS's raw mode keeps ISIG, so Ctrl+C comes as SIGINT: quit properly
@@ -144,16 +144,26 @@ MAIN.quit = function () {
     std.exit(0);
 };
 
-// The browser loads a save slot by opening "?slot=N", a new page; here the
-// game starts again as a new process with --slot N
+// The browser loads a save slot by opening "?slot=N", a new page. Here the
+// slot's values are turned into the game's own text save format and loaded
+// the way its "load from text" button does (Main.reloadEverythingFromFile),
+// so it works in the running game on every system
 MAIN.restartWithSlot = function (slot) {
-    MAIN.writeStorage();
-    MAIN.restore();
-    var exe = scriptArgs[0];
-    try {
-        os.exec([exe, "--slot", String(slot)], { usePath: exe.indexOf("/") == -1 });
-    } catch (e) {}
-    std.exit(0);
+    var id = "slot" + slot;
+    if (localStorage.getItem(id) === null) return;
+    var parts = [];
+    var add = function (type, all) {
+        for (var name in all) {
+            var v = localStorage.getItem(id + "." + name);
+            if (v !== null) parts.push(type + " " + name + "=" + v);
+        }
+    };
+    add("bool", Saving.getAllBools());
+    add("number", Saving.getAllNumbers());
+    add("string", Saving.getAllStrings());
+    TERM.lastPlace = null;
+    Main.reloadEverythingFromFile(parts.join(", "));
+    AV.dirty = true;
 };
 
 // ---------------------------------------------------------------------------

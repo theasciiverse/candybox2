@@ -20,7 +20,8 @@ var AV = {
     dirty: true,        // something changed since the last frame
     invert: false,      // the game's inverted colours option
     game: null,         // set by main.js through Keyboard.setGame
-    scrollTop: 0,       // $("html").scrollTop(), in rows
+    scrollTop: 0,       // $("html").scrollTop(), in browser pixels
+    ROW_PX: 18,         // a row of the browser's monospace text, in pixels
     log: function () {}
 };
 
@@ -217,11 +218,18 @@ AV.parseArea = function (loc, renderArea) {
         var stack = [];
         // the game keeps each row's tags sorted by descending column
         for (var t = row.length - 1; t >= 0; t--) {
-            var x = row[t].getX();
+            // string positions truncate, as substr() does in the browser
+            // (some are computed as x + length / 2)
+            var x = Math.floor(row[t].getX());
             var tokens = AV.tokenize(row[t].getString());
             for (var k = 0; k < tokens.length; k++) {
                 var tok = tokens[k];
                 var top = stack.length ? stack[stack.length - 1] : null;
+                if (tok.open == "br") {
+                    // a line break inside an overlay (tooltips: a title, then the text)
+                    if (top) top.content.push({ ch: "\n", b: false, u: false, i: false });
+                    continue;
+                }
                 if (tok.open) {
                     var el = new AVElement(tok.open, tok.attrs, loc, y, x);
                     if (top) {
@@ -297,6 +305,15 @@ AV.allElements = function () {
 
 AV.select = function (sel) {
     sel = sel.trim();
+    // "a, b": the elements matching either, in document order
+    if (sel.indexOf(",") != -1) {
+        var hits = [];
+        sel.split(",").forEach(function (part) {
+            AV.select(part).forEach(function (e) { if (hits.indexOf(e) == -1) hits.push(e); });
+        });
+        var all = AV.allElements();
+        return hits.sort(function (a, b) { return all.indexOf(a) - all.indexOf(b); });
+    }
     if (sel == ":focus")
         return AV.focus ? [AV.focus] : [];
     if (sel[0] == ".") {
@@ -446,11 +463,25 @@ AVQuery.prototype.hasClass = function (c) {
 
 AVQuery.prototype.focus = function () {
     var e = this.els[0];
-    if (e instanceof AVElement) {
-        AV.focus = e;
-        AV.dirty = true;
-    }
+    if (e instanceof AVElement)
+        AV.setFocus(e);
     return this;
+};
+
+// Moving the focus, as a browser does: a text input or textarea whose value
+// changed since it got the focus fires "change" as it loses it (the
+// cauldron reads its inputs only then, just before its button's click).
+// An element from an earlier render is gone and fires nothing.
+AV.setFocus = function (e) {
+    var old = AV.focus;
+    if (old && old !== e && (old.tag == "input" || old.tag == "textarea") && old.value !== AV.focusValue &&
+        AV.allElements().indexOf(old) != -1) {
+        AV.focusValue = old.value;
+        old.fire("change");
+    }
+    AV.focus = e || null;
+    AV.focusValue = e ? e.value : null;
+    AV.dirty = true;
 };
 
 // sizes: the game uses them only to centre the content, which terminal.js does
