@@ -2949,7 +2949,10 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
     ret = 0;
     nfds = poll(pfds, nfds, min_delay);
     if (nfds < 0) {
-        ret = -1;
+        /* asciiverse: a signal (SIGINT, SIGWINCH) interrupting poll() is not
+           an error; returning -1 ended js_std_loop and the program, before
+           the signal's handler could run on the next pass */
+        ret = errno == EINTR ? 0 : -1;
         goto done;
     }
     for (pfd = pfds; nfds-- > 0; pfd++) {
