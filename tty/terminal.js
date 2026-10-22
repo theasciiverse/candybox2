@@ -132,11 +132,17 @@ TERM.followPlayer = function (mc, vh) {
     }
     if (!pos || !qp)
         return;
+    // scroll only when the player would leave the view, so the top of the
+    // quest (its exit button) and the start stay in view while they can
     var px = qp.x + pos.x, py = qp.y + pos.y;
-    if (mc.width > TERM.w)
-        TERM.scrollX = px - Math.floor(TERM.w / 3);
-    if (mc.height > vh)
-        TERM.scrollY = py - Math.floor(vh / 2);
+    if (mc.width > TERM.w) {
+        if (px > TERM.scrollX + Math.floor(TERM.w * 2 / 3)) TERM.scrollX = px - Math.floor(TERM.w * 2 / 3);
+        if (px < TERM.scrollX + Math.floor(TERM.w / 6)) TERM.scrollX = px - Math.floor(TERM.w / 6);
+    }
+    if (mc.height > vh) {
+        if (py > TERM.scrollY + vh - 4) TERM.scrollY = py - vh + 4;
+        if (py < TERM.scrollY + 3) TERM.scrollY = py - 3;
+    }
 };
 
 TERM.compose = function () {
