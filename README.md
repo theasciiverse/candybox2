@@ -11,9 +11,6 @@ av install candybox2
 av play candybox2
 ```
 
-Or download the archive for your system from this repository's Releases,
-unpack it and run `./candybox2` (`candybox2.exe` on Windows).
-
 ## Credits
 
 aniwey made Candy Box in 2013 as a programming exercise; it went viral, and
